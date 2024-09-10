@@ -26,22 +26,36 @@ const registerUser = asyncHandler(async (req, res) => {
   ) {
     throw new ApiError();
   }
-
+  console.log("step 2 complete");
   // Step 3: check whether the user is already exits or not : email , username
-  const exitedUser = User.findOne({
+  const exitedUser = await User.findOne({
     $or: [{ userName }, { email }],
   });
   if (exitedUser) throw new ApiError(409, "username or email is already exits");
-
+  console.log("step 3 complete");
   // step 4: check for image, avatar(required field)
 
+  if (!req.files || !req.files.avatar) {
+    throw new ApiError(400, "Avatar file is required");
+  }
+
   const avatarLocalPath = req.files?.avatar[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
+
+  let coverImageLocalPath;
+  if (
+    !req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    coverImageLocalPath = req.files.coverImage[0].path;
+  }
   if (!avatarLocalPath) throw new ApiError(400, "Avatar file is required");
+  console.log("step 4 complete");
 
   // Step 5: upload avatar and coverage image in cloudinary
   const avatar = await cloudinaryUpload(avatarLocalPath);
   const coverImage = await cloudinaryUpload(coverImageLocalPath);
+  console.log("step 5 complete");
 
   // check whether the images are uploaded over cloudinary or not
   if (!avatar) throw new ApiError(400, "Avatar is required");
@@ -52,7 +66,7 @@ const registerUser = asyncHandler(async (req, res) => {
     userName: userName.toLowerCase(),
     email,
     password,
-    avatar: avatar.url,
+    avatar: avatar?.url,
     coverImage: coverImage?.url || "",
   });
 
@@ -64,7 +78,7 @@ const registerUser = asyncHandler(async (req, res) => {
       500,
       "Some issues have been encountered during creation of registering the user...",
     );
-
+  console.log("step 6 complete");
   // step 7: getting response after successfully saving data in DB
   return res
     .status(201)

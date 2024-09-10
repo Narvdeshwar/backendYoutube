@@ -14,10 +14,12 @@ const cloudinaryUpload = async (localFilePath) => {
       console.log("file path is not found");
       return null;
     }
+    console.log("test",localFilePath)
     // upload the file over the cloudinary
-    const response = await cloudinary.v2.uploader.upload(localFilePath, {
-      resource_type: auto, // checking the resource type
+    const response = await cloudinary.uploader.upload(localFilePath, {
+      resource_type: "auto", // checking the resource type
     });
+    console.log("respose form",response)
     console.log("file upload on cloudinary successfully", response.url);
     return response;
   } catch (error) {
