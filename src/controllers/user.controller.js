@@ -4,6 +4,23 @@ import { User } from "../models/user.model.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
+const generateAccessAndRefreshToken = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    await user.save({ validateBeforeSave: false });
+
+    return { accessToken, refreshToken };
+  } catch (Error) {
+    throw new ApiError(
+      500,
+      "Something fishy happens during generating the access and refresh token",
+    );
+  }
+};
+
 const registerUser = asyncHandler(async (req, res) => {
   /**
    * Step 1: getting the required data from the frontend user
@@ -87,4 +104,65 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createdUser, "User registered succesfully"));
 });
 
-export { registerUser };
+// login controller
+const loginUser = asyncHandler(async (req, res) => {
+  /**
+   * Step 1: getting the data from the req.body
+   * Step 2: check the data for email or username
+   * Step 3: finding that user from the db and check wheter the user exits or not
+   * Step 4: chekc the password entered by user is correct or not
+   * Step 5: generate the access and refresh token
+   * Step 6: send the secure cookies to ths user
+   */
+  // step 1: getting the data from the user for login purpose
+  const { username, email, password } = req.body;
+
+  // step 2: check the data for email or username
+  if (!username || !email) {
+    throw new ApiError(406, "username or email required");
+  }
+
+  // Step 3: finding that user from the db and check whether the exits in database or not
+  const user = await User.findOne({
+    $or: [{ username, email }],
+  });
+
+  if (!user) {
+    throw new ApiError(401, "User not exit");
+  }
+
+  // step 4: chekc the password entered by user is correct or not
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError("401", "Invalid user credentials..");
+  }
+
+  // step 5: genrate access token and refresh token
+  const { refreshToken, accessToken } = await generateAccessAndRefreshToken(
+    user._id,
+  );
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken",
+  );
+
+  // setting options cookie so that it will modifiedable only the server
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+  res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(
+        200,
+        { loggedInUser, accessToken, refreshToken },
+        "User logged in succussfully..",
+      ),
+    );
+});
+
+export { registerUser, loginUser };
