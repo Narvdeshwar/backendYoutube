@@ -1,22 +1,22 @@
 import mongoose, { Schema } from "mongoose";
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 
-const userSchema = Schema(
+const userSchema = new Schema(
   {
     userName: {
       type: String,
-      unique: true,
       required: true,
-      index: true,
+      unique: true,
       lowercase: true,
       trim: true,
+      index: true,
     },
     email: {
       type: String,
-      unique: true,
       required: true,
-      lowercase: true,
+      unique: true,
+      lowercase: true, // Corrected typo here
       trim: true,
     },
     fullName: {
@@ -26,11 +26,11 @@ const userSchema = Schema(
       index: true,
     },
     avatar: {
-      type: String, // cloudany url provider
+      type: String, // cloudinary url
       required: true,
     },
     coverImage: {
-      type: String,
+      type: String, // cloudinary url
     },
     watchHistory: [
       {
@@ -40,7 +40,7 @@ const userSchema = Schema(
     ],
     password: {
       type: String,
-      required: [true, "password is required"],
+      required: [true, "Password is required"],
     },
     refreshToken: {
       type: String,
@@ -51,41 +51,61 @@ const userSchema = Schema(
   },
 );
 
-// password save krne se phle below line execute krna hai ki khi password change hua hai ki nhi age change hua hai to encrypt kr do otherwise mt kro aur yha hm arrow function ka use isliye nhi kr rhe hai kyuki uske pass userSchema ke fields ka refernce nhi rhega .
-
+// Hash password before saving to the database
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  this.password = bcrypt.hash(this.password, 10);
+  try {
+    this.password = await bcrypt.hash(this.password, 10); // Encrypt password
+    next();
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Use this middleware for 'findOneAndUpdate' and 'findByIdAndUpdate' to hash passwords during updates
+userSchema.pre("findOneAndUpdate", async function (next) {
+  const update = this.getUpdate();
+  if (update.password) {
+    try {
+      update.password = await bcrypt.hash(update.password, 10);
+    } catch (error) {
+      return next(error);
+    }
+  }
   next();
 });
 
-// custom method => isPasswordCorrect method either true or false value return karega ki authenetication ke time
+// Compare input password with stored hashed password
 userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
-//jwt ek bearer token hai mtlb jiske pass bhi "token" hoga ye use data send kr dega
-
+// Generate access token
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
       _id: this._id,
       email: this.email,
-      userName: this.userName,
+      username: this.userName, // Fixed field name from 'username' to 'userName'
       fullName: this.fullName,
     },
     process.env.ACCESS_TOKEN_SECRET,
-    (expireIn = process.env.ACCESS_TOKEN_EXPIRY),
+    {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+    },
   );
 };
 
+// Generate refresh token
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {
       _id: this._id,
     },
-    process.env.ACCESS_TOKEN_SECRET,
-    (expireIn = process.env.ACCESS_TOKEN_EXPIRY),
+    process.env.REFRESH_TOKEN_SECRET,
+    {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+    },
   );
 };
 

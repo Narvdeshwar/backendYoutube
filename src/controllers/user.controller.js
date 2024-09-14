@@ -115,10 +115,11 @@ const loginUser = asyncHandler(async (req, res) => {
    * Step 6: send the secure cookies to ths user
    */
   // step 1: getting the data from the user for login purpose
+  console.log("login user route work");
   const { username, email, password } = req.body;
 
   // step 2: check the data for email or username
-  if (!username || !email) {
+  if (!(username || email)) {
     throw new ApiError(406, "username or email required");
   }
 
@@ -165,4 +166,28 @@ const loginUser = asyncHandler(async (req, res) => {
     );
 });
 
-export { registerUser, loginUser };
+// logout controller
+const logout = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined,
+      },
+    },
+    {
+      new: true,
+    },
+  );
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, null, "User logged out successfully"));
+});
+
+export { registerUser, loginUser, logout };
