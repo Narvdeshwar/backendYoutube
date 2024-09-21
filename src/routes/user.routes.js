@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   loginUser,
   logout,
+  refreshAccessToken,
   registerUser,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -28,5 +29,5 @@ router.route("/login").post(loginUser);
 
 router.route("/logout").post(verifyJWT, logout);
 
-
+router.route("/refreshToken").post(refreshAccessToken);
 export default router;
