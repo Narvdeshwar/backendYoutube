@@ -191,7 +191,7 @@ const logout = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "User logged out successfully"));
 });
 
-// refreshtoken response
+// refreshtoken response controller
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.body.refreshToken || req.cookies.refreshToken;
@@ -233,4 +233,105 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 });
 
-export { registerUser, loginUser, logout, refreshAccessToken };
+// changeCurrentPassword controller
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  // taking the oldpassword,newpassword and confirm password from the user
+  const { oldPassword, newPassword, confirmPassword } = req.body;
+  // check whether newpassword and confirmpassword is correct or not
+  if (!(newPassword === confirmPassword)) {
+    throw new ApiError(200, "new password and confirm password are incorrect");
+  }
+  // if the user is at change password condition means that the user is logged in then we can extract the user_id from the user
+  const user = await User.findById(req.user?.id);
+  // now we check whether the old password is correct or not
+  const isOldPasswordIsCorrect = await user.isPasswordCorrect(oldPassword);
+  if (!isOldPasswordIsCorrect) {
+    throw new ApiError(400, "Invalid old password");
+  }
+  // if old password is correct then we will save it to db
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "password changed successfully"));
+});
+
+// getting current user controller
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(200, req.user, "current user fetched successfully");
+});
+
+// updating user details controller
+const updateUserDetails = asyncHandler(async (req, res) => {
+  // getting the data from front end to update the data
+  const { fullName, email } = req.body; // data is coming from front-end
+  // check whether empty response received from the front end
+  if (!(fullName || email)) {
+    throw new ApiError(200, "fullname or email is required!");
+  }
+  // if the data is received then find the user from the db and update the details and don't send the password as a response
+  const user = User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        fullName: fullName,
+        email: email,
+      },
+    },
+    {
+      new: true, // to get the response
+    },
+  ).select("-password");
+  // if the data is updated then send the respose
+  res.status(
+    400,
+    new ApiResponse(400, user, "user details updated successfully"),
+  );
+});
+
+// updating avatar controller
+const updateAvatar = asyncHandler(async (req, res) => {
+  // taking the avatar from the front-end
+  const avatarLocalPath = req.files?.path;
+  // checking whether the path is provided or not
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Avatar file is missing ?");
+  }
+  // if avatar file path is provided then upload on cloudinary
+  const avatar = await cloudinaryUpload(avatarLocalPath);
+  // if avatar is upload on cloudinary then check whether url is received from the cloudinary or not
+  if (!avatar.url) {
+    throw new ApiError(400, "Error while uploading the cloudinary");
+  }
+  // if avatar is uploaded on cloudinary successfully the update the object on db for that user
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        avatar: avatar.url,
+      },
+    },
+    {
+      new: true,
+    },
+  ).select("-password");
+  // if avatar is updated successfully the send the response
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Avatar updated successfully"));
+});
+
+// updating cover image controller
+
+export {
+  registerUser,
+  loginUser,
+  logout,
+  refreshAccessToken,
+  changeCurrentPassword,
+  getCurrentUser,
+  updateUserDetails,
+  updateAvatar,
+};
