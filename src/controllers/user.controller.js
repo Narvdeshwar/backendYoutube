@@ -295,6 +295,7 @@ const updateUserDetails = asyncHandler(async (req, res) => {
 const updateAvatar = asyncHandler(async (req, res) => {
   // taking the avatar from the front-end
   const avatarLocalPath = req.files?.path;
+
   // checking whether the path is provided or not
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar file is missing ?");
@@ -324,6 +325,41 @@ const updateAvatar = asyncHandler(async (req, res) => {
 });
 
 // updating cover image controller
+const updateCoverImage = asyncHandler(async (req, res) => {
+  // taking the coverimage from the front end user
+  const coverImageLocalPath = req.file?.path;
+
+  // check whether local path is provided or not
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "cover image is not provided..");
+  }
+
+  // if cover image localpath found the upload it to cloudinary
+  const coverImageUrl = await cloudinaryUpload(coverImageLocalPath);
+
+  // if coverImage not uploaded successfully on cloudinary then through the error
+  if (!coverImageUrl) {
+    throw new ApiError(
+      400,
+      "coverImage not uploaded successfully on the cloudinary",
+    );
+  }
+
+  // if cover image uploaded successfully then find the user from the database
+  const user = User.findByIdAndDelete(
+    req.user?._id,
+    {
+      $set: { coverImage: coverImageUrl.url },
+    },
+    {
+      new: true,
+    },
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "CoverImage updated successfully"));
+});
 
 export {
   registerUser,
@@ -334,4 +370,5 @@ export {
   getCurrentUser,
   updateUserDetails,
   updateAvatar,
+  updateCoverImage,
 };
