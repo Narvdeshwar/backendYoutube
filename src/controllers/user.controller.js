@@ -361,6 +361,80 @@ const updateCoverImage = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "CoverImage updated successfully"));
 });
 
+// user channel controller
+const channel = asyncHandler(async (req, res) => {
+  // Jab user kisi channel ko search karta hai, toh URL se uska data fetch hota hai
+  const { username } = req.params;
+
+  // Agar search bar me username nahi diya gaya toh error throw karega
+  if (!username) {
+    throw new ApiError(400, "user name is not provided...");
+  }
+
+  // Aggregation pipeline to find the specific user and their subscriber/subscribed info
+  const channel = await User.aggregate([
+    // First stage: $match to find the user with the given username
+    {
+      $match: {
+        userName: username, // Match the user by username from the URL parameters
+      },
+    },
+    // Second stage: $lookup to find subscribers for the user (users who subscribe to this channel)
+    {
+      $lookup: {
+        from: "subscriptions", // Look into the "subscriptions" collection
+        localField: "_id", // Match the user's _id
+        foreignField: "channel", // Match where the "channel" field in subscriptions equals the user's _id
+        as: "subscribers", // The matched results will be stored in a new field called "subscribers"
+      },
+    },
+    // Third stage: $lookup to find the channels this user is subscribed to
+    {
+      $lookup: {
+        from: "subscriptions", // Look into the "subscriptions" collection again
+        localField: "_id", // Match the user's _id
+        foreignField: "subscriber", // Match where the "subscriber" field in subscriptions equals the user's _id
+        as: "subscribedTo", // The matched results will be stored in a new field called "subscribedTo"
+      },
+    },
+    // Fourth stage: $addFields to calculate additional information like subscriber count and whether the user is subscribed
+    {
+      $addFields: {
+        subscribersCount: { $size: "$subscribers" }, // Calculate total number of subscribers by counting the array size
+        subscribedByMe: { $size: "$subscribedTo" }, // Calculate the total number of subscriptions made by this user
+        isSubscribed: {
+          // Check if the current logged-in user is subscribed to this user
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] }, // If the logged-in user's _id is found in the subscribers array
+            then: true, // Set isSubscribed to true
+            else: false, // Otherwise, set isSubscribed to false
+          },
+        },
+      },
+    },
+    // Fifth stage: $project to specify which fields should be included in the final output
+    {
+      $project: {
+        fullName: 1, // Include the full name of the user
+        userName: 1, // Include the username of the user
+        subscribersCount: 1, // Include the calculated subscribers count
+        subscribedByMe: 1, // Include the calculated count of subscriptions made by this user
+        isSubscribed: 1, // Include the boolean value indicating if the current user is subscribed
+        avatar: 1, // Include the avatar (profile picture) of the user
+        coverImage: 1, // Include the cover image of the user
+      },
+    },
+  ]);
+
+  // Agar user exist nahi karta ya aggregation se koi result nahi mila toh error throw karega
+  if (user?.length) {
+    throw new ApiError(400, "channel doesn't exist...");
+  }
+
+  // Agar sab kuch sahi hai toh response bhejega user data ke sath
+  res.status(200).json(200, channel[0], "User channel fetched successfully...");
+});
+
 export {
   registerUser,
   loginUser,
